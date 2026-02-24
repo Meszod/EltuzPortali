@@ -1,16 +1,17 @@
-import asyncio
+import os
 import logging
-from datetime import datetime
 from aiogram import Bot, Dispatcher, types
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters import Command
 from aiogram.utils import executor
 
 # --- Sozlamalar ---
-API_TOKEN = "8544367775:AAGSv3nppSasbh1HsfyhOs2dD_ti2WMRemA"
-ADMIN_IDS = [8517530604, 6476871794]
+API_TOKEN = os.getenv("8544367775:AAGSv3nppSasbh1HsfyhOs2dD_ti2WMRemA")
+ADMIN_IDS_STR = os.getenv("ADMIN_IDS", "8517530604,6476871794")
+ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_STR.split(",")]
 
 logging.basicConfig(level=logging.INFO)
+
+if not API_TOKEN:
+    raise ValueError("BOT_TOKEN muhit o'zgaruvchisi o'rnatilmagan!")
 
 # Bot va dispatcher yaratish
 bot = Bot(token=API_TOKEN)
@@ -57,7 +58,14 @@ async def language_chosen(callback: types.CallbackQuery):
     await callback.answer()
 
 # Oddiy xabarlarni qabul qilish
-@dp.message_handler(content_types=['text', 'photo', 'video', 'audio', 'document', 'voice'])
+@dp.message_handler(content_types=[
+    types.ContentType.TEXT,
+    types.ContentType.PHOTO,
+    types.ContentType.VIDEO,
+    types.ContentType.AUDIO,
+    types.ContentType.DOCUMENT,
+    types.ContentType.VOICE,
+])
 async def handle_message(message: types.Message):
     user_id = message.from_user.id
     lang = user_language.get(user_id, "uz")
@@ -77,6 +85,15 @@ async def handle_message(message: types.Message):
     user_selected_lang = user_language.get(user_id, "uz")
     lang_display = "🇺🇿 O'zbekcha" if user_selected_lang == "uz" else "🇷🇺 Русский"
 
+    content_type_display = {
+        "text": "📝 Matn",
+        "photo": "🖼 Rasm",
+        "video": "🎥 Video",
+        "audio": "🎵 Audio",
+        "document": "📄 Hujjat",
+        "voice": "🎤 Ovozli xabar",
+    }.get(message.content_type, message.content_type)
+
     user_info = (
         f"📋 YANGI MUROJAAT\n\n"
         f"👤 Foydalanuvchi ma'lumotlari:\n"
@@ -85,7 +102,7 @@ async def handle_message(message: types.Message):
         f"• Ism: {first_name}\n"
         f"• Familiya: {last_name}\n"
         f"• Tanlagan til: {lang_display}\n\n"
-        f"💬 Xabar turi: {message.content_type}\n"
+        f"💬 Xabar turi: {content_type_display}\n"
         f"📅 Sana: {message.date.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         f"📝 Xabar matni:"
     )
