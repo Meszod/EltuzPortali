@@ -1,39 +1,41 @@
 import os
+import asyncio
 import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # --- Sozlamalar ---
-API_TOKEN = os.getenv("8544367775:AAGSv3nppSasbh1HsfyhOs2dD_ti2WMRemA")
+API_TOKEN = os.getenv("BOT_TOKEN", "8544367775:AAGSv3nppSasbh1HsfyhOs2dD_ti2WMRemA")
 ADMIN_IDS_STR = os.getenv("ADMIN_IDS", "8517530604,6476871794")
 ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_STR.split(",")]
 
 logging.basicConfig(level=logging.INFO)
 
 if not API_TOKEN:
-    raise ValueError("BOT_TOKEN muhit o'zgaruvchisi o'rnatilmagan!")
+    raise ValueError("BOT_TOKEN o'rnatilmagan!")
 
-# Bot va dispatcher yaratish
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
 # Foydalanuvchi tillari
 user_language = {}
 
 # Til tanlash klaviaturasi
 def language_keyboard():
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="🇺🇿 O'zbekcha", callback_data="lang_uz"))
-    keyboard.add(types.InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru"))
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇺🇿 O'zbekcha", callback_data="lang_uz")],
+        [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru")],
+    ])
     return keyboard
 
 # /start komandasi
-@dp.message_handler(commands=['start'])
+@dp.message(Command("start"))
 async def start_command(message: types.Message):
     await message.answer("Tilni tanlang / Выберите язык:", reply_markup=language_keyboard())
 
 # Til tanlanganda
-@dp.callback_query_handler(lambda callback: callback.data.startswith("lang_"))
+@dp.callback_query(F.data.startswith("lang_"))
 async def language_chosen(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     lang = callback.data.split("_")[1]
@@ -57,15 +59,15 @@ async def language_chosen(callback: types.CallbackQuery):
     await callback.message.answer(text)
     await callback.answer()
 
-# Oddiy xabarlarni qabul qilish
-@dp.message_handler(content_types=[
+# Xabarlarni qabul qilish
+@dp.message(F.content_type.in_({
     types.ContentType.TEXT,
     types.ContentType.PHOTO,
     types.ContentType.VIDEO,
     types.ContentType.AUDIO,
     types.ContentType.DOCUMENT,
     types.ContentType.VOICE,
-])
+}))
 async def handle_message(message: types.Message):
     user_id = message.from_user.id
     lang = user_language.get(user_id, "uz")
@@ -77,13 +79,11 @@ async def handle_message(message: types.Message):
 
     await message.answer(response_text)
 
-    # Admin uchun ma'lumotlar tayyorlash
     user = message.from_user
     username = f"@{user.username}" if user.username else "Yo'q"
-    first_name = user.first_name if user.first_name else "Yo'q"
-    last_name = user.last_name if user.last_name else "Yo'q"
-    user_selected_lang = user_language.get(user_id, "uz")
-    lang_display = "🇺🇿 O'zbekcha" if user_selected_lang == "uz" else "🇷🇺 Русский"
+    first_name = user.first_name or "Yo'q"
+    last_name = user.last_name or "Yo'q"
+    lang_display = "🇺🇿 O'zbekcha" if lang == "uz" else "🇷🇺 Русский"
 
     content_type_display = {
         "text": "📝 Matn",
@@ -107,7 +107,6 @@ async def handle_message(message: types.Message):
         f"📝 Xabar matni:"
     )
 
-    # Adminlarga yuborish
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(chat_id=admin_id, text=user_info)
@@ -117,8 +116,12 @@ async def handle_message(message: types.Message):
                 message_id=message.message_id
             )
         except Exception as e:
-            logging.error(f"Xabarni admin {admin_id} ga yuborishda xato: {e}")
+            logging.error(f"Admin {admin_id} ga yuborishda xato: {e}")
 
 # Botni ishga tushirish
+async def main():
+    logging.info("Bot ishga tushdi...")
+    await dp.start_polling(bot, skip_updates=True)
+
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
